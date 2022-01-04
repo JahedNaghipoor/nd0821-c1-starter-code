@@ -84,11 +84,11 @@ def test_encoder_helper(encoder_helper, dataframe):
     return dataframe
 
 
-def test_perform_feature_engineering(perform_feature_engineering, dataframe):
+def test_perform_feature_engineering(perform_feature_engineering, dataframe, response):
     '''
     test perform_feature_engineering
     '''
-    X_train, X_test, y_train, y_test = perform_feature_engineering(dataframe)
+    X_train, X_test, y_train, y_test = perform_feature_engineering(dataframe, response)
     try:
         assert X_train.shape[0] > 0
         assert X_test.shape[0] > 0
@@ -134,6 +134,6 @@ if __name__ == "__main__":
     test_eda(chlib.perform_eda, dataframe_import)
     dataframe_helper = test_encoder_helper(chlib.encoder_helper, dataframe_import)
     X_train, X_test, y_train, y_test = test_perform_feature_engineering(
-        chlib.perform_feature_engineering, dataframe_helper)
+        chlib.perform_feature_engineering, dataframe_helper, "Churn")
     test_train_models(chlib.train_models)
     

@@ -2,7 +2,7 @@
 In this project, we will find customers who are likely to churn
 Author: Jahed Naghipoor
 Date: 20/10/2021
-Pylint score: 8.29/10
+Pylint score: 9.10/10
 """
 import os
 import logging
@@ -13,13 +13,17 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from sklearn.metrics import classification_report
+from sklearn.metrics import plot_roc_curve, classification_report
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-
+from sklearn.model_selection import GridSearchCV
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+
+IMAGE_EDA_PATH = "./images/eda/"
+MODEL_PATH = "models/"
+IMAGE_RESULT_PATH = './images/results'
 
 logging.basicConfig(
     filename='./logs/churn_library.log',
@@ -41,9 +45,9 @@ def import_data(path):
     try:
         # Trying to read file
         dataframe = pd.read_csv(path)
-        logging.info(f'SUCCESS: file {path} loaded successfully')
+        logging.info('SUCCESS: file %s loaded successfully', path)
     except FileNotFoundError as err:
-        logging.error(f'ERROR: file {path} not found')
+        logging.error('ERROR: file %s not found', path)
         raise err
     return dataframe
 
@@ -64,9 +68,8 @@ def perform_eda(dataframe):
         "Total_Trans_Ct",
         "Heatmap"]
 
-    img_eda_pth = "./images/eda/"
-    if not os.path.exists(img_eda_pth):
-        os.makedirs(img_eda_pth)
+    if not os.path.exists(IMAGE_EDA_PATH):
+        os.makedirs(IMAGE_EDA_PATH)
     for column in plotting_columns:
 
         plt.figure(figsize=(20, 10))
@@ -90,7 +93,7 @@ def perform_eda(dataframe):
                 cmap='Dark2_r',
                 linewidths=2)
 
-        plt.savefig(os.path.join(img_eda_pth, f"{column}.jpg"))
+        plt.savefig(os.path.join(IMAGE_EDA_PATH, f"{column}.jpg"))
         plt.close()
 
 
@@ -116,7 +119,7 @@ def encoder_helper(dataframe, category_lst, response):
     return dataframe
 
 
-def perform_feature_engineering(dataframe):
+def perform_feature_engineering(dataframe, response):
     '''
     input:
               df: pandas dataframe
@@ -135,7 +138,7 @@ def perform_feature_engineering(dataframe):
             f'ERROR: Type to be {pd.DataFrame} but is {type(dataframe)}')
         raise err
 # Input columns
-    x_cols = [
+    keep_cols = [
         "Customer_Age",
         "Dependent_count",
         "Months_on_book",
@@ -156,20 +159,20 @@ def perform_feature_engineering(dataframe):
         "Income_Category_Churn",
         "Card_Category_Churn"]
 
-    X = pd.DataFrame()
+    features = pd.DataFrame()
     # Teature columns
-    X[x_cols] = dataframe[x_cols]
+    features[keep_cols] = dataframe[keep_cols]
     # Target column
-    y = dataframe["Churn"]
+    label = dataframe[response]
 
     # Spliting the data to 70% train and 30% test
     x_train, x_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42)
+        features, label, test_size=0.3, random_state=42)
     logging.info('SUCCESS: Data splitting finished.')
-    logging.info(f'INFO: X_train size {x_train.shape}.')
-    logging.info(f'INFO: X_test size {x_test.shape}.')
-    logging.info(f'INFO: y_train size {y_train.shape}.')
-    logging.info(f'INFO: y_test size {y_test.shape}.')
+    logging.info('INFO: X_train size: %s', str(x_train.shape))
+    logging.info('INFO: X_test size: %s', str(x_test.shape))
+    logging.info('INFO: y_train size: %s', str(y_train.shape))
+    logging.info('INFO: y_test size: %s', str(y_test.shape))
     return x_train, x_test, y_train, y_test
 
 
@@ -223,13 +226,13 @@ def classification_report_image(y_train,
         './images/results/logistic_regression_train_results.joblib')
 
 
-def feature_importance_plot(model, X, output_path):
+def feature_importance_plot(model, features, output_path):
     '''
     creates and stores the feature importances in pth
     input:
             model: model object containing feature_importances_
-            X_data: pandas dataframe of X values
-            output_pth: path to store the figure
+            features: pandas dataframe of X values
+            output_path: path to store the figure
 
     output:
              None
@@ -240,7 +243,7 @@ def feature_importance_plot(model, X, output_path):
     indices = np.argsort(importances)[::-1]
 
     # Rearrange feature names so they match the sorted feature importances
-    names = [X.columns[i] for i in indices]
+    names = [features.columns[i] for i in indices]
 
     # Create plot
     plt.figure(figsize=(20, 5))
@@ -250,10 +253,10 @@ def feature_importance_plot(model, X, output_path):
     plt.ylabel('Importance')
 
     # Add bars
-    plt.bar(range(X.shape[1]), importances[indices])
+    plt.bar(range(features.shape[1]), importances[indices])
 
     # Add feature names as x-axis labels
-    plt.xticks(range(X.shape[1]), names, rotation=90)
+    plt.xticks(range(features.shape[1]), names, rotation=90)
     # save plots
     output_path = './images/feat_imp_plot.jpeg'
     plt.savefig(output_path)
@@ -273,11 +276,19 @@ def train_models(X_train, X_test, y_train, y_test):
     '''
 
     rfc = RandomForestClassifier(random_state=42)
-    rfc.fit(X_train, y_train)
-    y_train_preds_rf = rfc.predict(X_train)
-    y_test_preds_rf = rfc.predict(X_test)
+    param_grid = {
+        'n_estimators': [200, 500],
+        'max_features': ['auto', 'sqrt'],
+        'max_depth': [4, 5, 100],
+        'criterion': ['gini', 'entropy']
+    }
+    cv_rfc = GridSearchCV(estimator=rfc, param_grid=param_grid, cv=5)
 
-    lrc = LogisticRegression(max_iter=1000)
+    cv_rfc.fit(X_train, y_train)
+    y_train_preds_rf = cv_rfc.best_estimator_.predict(X_train)
+    y_test_preds_rf = cv_rfc.best_estimator_.predict(X_test)
+
+    lrc = LogisticRegression()
     lrc.fit(X_train, y_train)
     y_train_preds_lr = lrc.predict(X_train)
     y_test_preds_lr = lrc.predict(X_test)
@@ -289,26 +300,34 @@ def train_models(X_train, X_test, y_train, y_test):
                                 y_test_preds_lr,
                                 y_test_preds_rf)
 
-    result_pth = './images/results/'
+    lrc_plot = plot_roc_curve(lrc, X_test, y_test)
+    plt.figure(figsize=(15, 8))
+    axis = plt.gca()
+    plot_roc_curve(
+        cv_rfc.best_estimator_,
+        X_test,
+        y_test,
+        ax=axis,
+        alpha=0.8)
+    lrc_plot.plot(ax=axis, alpha=0.8)
+    plt.savefig('./images/ROC_curves.png')
 
-    if not os.path.exists(result_pth):
-        os.makedirs(result_pth)
+    if not os.path.exists(MODEL_PATH):
+        os.makedirs(MODEL_PATH)
 
-    feature_importance_plot(rfc, X_train, './images/results/')
-
-    model_pth = "models/"
-    if not os.path.exists(model_pth):
-        os.makedirs(model_pth)
-
-    joblib.dump(rfc, "models/rfc_model.pkl")
-    joblib.dump(lrc, "models/logistic_model.pkl")
+    joblib.dump(
+        cv_rfc.best_estimator_,
+        os.path.join(
+            MODEL_PATH,
+            "/rfc_model.pkl"))
+    joblib.dump(lrc, os.path.join(MODEL_PATH, "/logistic_model.pkl"))
 
 
 if __name__ == "__main__":
     PATH = "./data/bank_data.csv"
 
     df = import_data(PATH)
-
+    RESPONSE = 'Churn'
     category_list = [
         'Gender',
         'Education_Level',
@@ -316,13 +335,17 @@ if __name__ == "__main__":
         'Income_Category',
         'Card_Category']
 
-    df['Churn'] = df['Attrition_Flag'].apply(
+    df[RESPONSE] = df['Attrition_Flag'].apply(
         lambda val: 0 if val == "Existing Customer" else 1)
 
     perform_eda(df)
 
-    df = encoder_helper(df, category_list, 'Churn')
+    df = encoder_helper(df, category_list, RESPONSE)
 
-    X_train, X_test, y_train, y_test = perform_feature_engineering(df)
+    X_train, X_test, y_train, y_test = perform_feature_engineering(
+        df, RESPONSE)
 
     train_models(X_train, X_test, y_train, y_test)
+
+    rfc_model = joblib.load(os.path.join(MODEL_PATH, '/rfc_model.pkl'))
+    feature_importance_plot(rfc_model, X_train, IMAGE_RESULT_PATH)

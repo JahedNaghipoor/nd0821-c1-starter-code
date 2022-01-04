@@ -3,17 +3,26 @@
 - Project **Predict Customer Churn** of ML DevOps Engineer Nanodegree Udacity
 
 ## Project Description
-In this project, we will excersize best code practices for the project churn detection
+In this project, we will exercise best code practices for the project churn detection. We would like to identify credit card customers that are most likely to churn.
 
+## Create virtual environment:
 
+python -m venv my_venv
+Install Python dependencies
 
-## Running Files
+## activate virtual environment
+### Windows: 
+    my_venv\Scripts\activate.bat
+### Linux/macOS: 
+    souce my_venv/bin/activate
+    
+run pip install -r requirements.txt
 
-for train run:
-ipython churn_library.py
+## Running the scripts
 
-for testing run:
-ipython churn_script_logging_and_tests.py
+for training run: python churn_library.py
+
+for testing run: python churn_script_logging_and_tests.py
 
 
 
