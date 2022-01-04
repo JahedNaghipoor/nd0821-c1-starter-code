@@ -14,7 +14,7 @@ Install Python dependencies
 ### Windows: 
     my_venv\Scripts\activate.bat
 ### Linux/macOS: 
-    souce my_venv/bin/activate
+    source my_venv/bin/activate
     
 run pip install -r requirements.txt
 
